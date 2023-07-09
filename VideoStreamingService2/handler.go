@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 
@@ -133,6 +134,8 @@ func (h *Handler) OnAudio(timestamp uint32, payload io.Reader) error {
 	}
 	audio.Data = flvBody
 
+	fmt.Printf("%v", flvBody)
+
 	_ = h.pub.Publish(&flvtag.FlvTag{
 		TagType:   flvtag.TagTypeAudio,
 		Timestamp: timestamp,
@@ -156,6 +159,7 @@ func (h *Handler) OnVideo(timestamp uint32, payload io.Reader) error {
 		return err
 	}
 	video.Data = flvBody
+	fmt.Printf("%v", flvBody)
 
 	_ = h.pub.Publish(&flvtag.FlvTag{
 		TagType:   flvtag.TagTypeVideo,

@@ -23,7 +23,7 @@ func main() {
 	// Each stream maps to a pubsub
 	relayService := NewRelayService()
 
-	// Creaate a new server
+	// Create a new server
 	srv := rtmp.NewServer(&rtmp.ServerConfig{
 		OnConnect: func(conn net.Conn) (io.ReadWriteCloser, *rtmp.ConnConfig) {
 			l := log.StandardLogger()
@@ -44,6 +44,8 @@ func main() {
 			}
 		},
 	})
+	// Listens on this port for each of the RTMP Commands then eventhandles them appropriately
+	// Serve calls the OnConnect which creates a logger and handler that references our relayservice
 	log.Info("RTMP Server started. Listening on :1935")
 	if err := srv.Serve(listener); err != nil {
 		log.Panicf("Failed: %+v", err)
