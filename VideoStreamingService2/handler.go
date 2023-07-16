@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
+	"net/http"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	flvtag "github.com/yutopp/go-flv/tag"
@@ -158,6 +161,10 @@ func (h *Handler) OnVideo(timestamp uint32, payload io.Reader) error {
 	if _, err := io.Copy(flvBody, video.Data); err != nil {
 		return err
 	}
+
+	// Send flv file to python webserver microservice
+	sendMultiPartPost(h, "INSERT PYTHON MICROSERVICE URL", flvBody.Bytes())
+
 	video.Data = flvBody
 	fmt.Printf("%v", flvBody)
 
@@ -182,4 +189,43 @@ func (h *Handler) OnClose() {
 	if h.sub != nil {
 		_ = h.sub.Close()
 	}
+}
+
+// Send flv file to the microservice
+func sendMultiPartPost(h *Handler, url string, data []byte) ([]byte, error) {
+	var (
+		buf = new(bytes.Buffer)
+		w   = multipart.NewWriter(buf)
+	)
+	part, err := w.CreateFormFile("flv", filepath.Base("/flv_data.flv"))
+	if err != nil {
+		return []byte{}, err
+	}
+
+	_, err = part.Write(data)
+	if err != nil {
+		return []byte{}, err
+	}
+	err = w.Close()
+	if err != nil {
+		return []byte{}, err
+	}
+
+	req, err := http.NewRequest("POST", url, buf)
+	if err != nil {
+		return []byte{}, err
+	}
+	req.Header.Add("Content-Type", w.FormDataContentType())
+
+	res, err := h.relayService.httpClient.Do(req)
+	if err != nil {
+		return []byte{}, err
+	}
+	defer res.Body.Close()
+
+	content, err := io.ReadAll(res.Body)
+	if err != nil {
+		return []byte{}, err
+	}
+	return content, nil
 }

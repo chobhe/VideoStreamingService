@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 )
 
 // Map of pubsub objects that have one client streaming/publishing and a bunch of clients subscribing/receiving
 type RelayService struct {
-	streams map[string]*Pubsub
-	m       sync.Mutex
+	streams    map[string]*Pubsub
+	m          sync.Mutex
+	httpClient *http.Client
 }
 
 // NewRelayService constructs a new RelayService.

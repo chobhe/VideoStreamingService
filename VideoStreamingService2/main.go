@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"net"
+	"net/http"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yutopp/go-rtmp"
@@ -22,6 +23,7 @@ func main() {
 	// Create the relay service for all the streams. This is so we can handle multiple streams.
 	// Each stream maps to a pubsub
 	relayService := NewRelayService()
+	relayService.httpClient = &http.Client{}
 
 	// Create a new server
 	srv := rtmp.NewServer(&rtmp.ServerConfig{
