@@ -2,6 +2,7 @@ import sys
 import os
 import cv2
 import numpy as np
+import io
 sys.path.append("..")
 
 import requests
@@ -10,7 +11,7 @@ import json
 import openai
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 # used to return a json in the response
 from fastapi.responses import JSONResponse
@@ -50,19 +51,26 @@ app.add_middleware(
 
 
 @app.post('/label-faces')
-async def label_faces(file: UploadFile = File(...)) -> JsonReturn :
+async def label_faces(request: Request) -> JsonReturn :
     #source ./env/bin/activate to start venv
-    # Ensure the file is in the right format
-    if not file.filename.endswith(".flv"):
-        raise HTTPException(status_code=400, detail="Invalid file format")
+    # Create a bytes buffer for the video
+    # TODO: Perhaps create a more elegant streaming solution for receiving all the bytes instead of just
+    # Reading it into memory: EG Process in chunks based on the frames or something
+    body_bytes = await request.body()
+    video_buffer = io.BytesIO(body_bytes)
 
-    # Save the file to disk temporarily, you may also process it directly in memory for larger files
-    with open(f"/path/to/save/{file.filename}", "wb") as buffer:
-        buffer.write(await file.read())
-
-    # Use OpenCV to process the video file
+    # Set up a list to hold the frames
     frames = []
-    cap = cv2.VideoCapture(f"/{file.filename}")
+
+    # Read the video buffer
+    video_bytes = np.frombuffer(video_buffer.getvalue(), dtype=np.uint8)
+
+    # Check for empty buffer
+    if video_bytes is None:
+        raise HTTPException(status_code=400, detail="Empty buffer")
+
+    # Use OpenCV to process the video buffer
+    cap = cv2.imdecode(video_bytes, cv2.IMREAD_COLOR)
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -74,9 +82,10 @@ async def label_faces(file: UploadFile = File(...)) -> JsonReturn :
     cap.release()
 
     # Now you can process the frames with your computer vision code
-    # ...
+    # Feed all the frames into a CV model
 
     return {"message": "Video processed successfully"}
+    
 
    
 

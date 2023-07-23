@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 	flvtag "github.com/yutopp/go-flv/tag"
@@ -158,12 +156,15 @@ func (h *Handler) OnVideo(timestamp uint32, payload io.Reader) error {
 
 	// Need deep copy because payload will be recycled
 	flvBody := new(bytes.Buffer)
-	if _, err := io.Copy(flvBody, video.Data); err != nil {
+	written, err := io.Copy(flvBody, video.Data)
+	if err != nil {
 		return err
 	}
 
+	fmt.Printf("Copied %v bytes", written)
+
 	// Send flv file to python webserver microservice
-	sendMultiPartPost(h, "INSERT PYTHON MICROSERVICE URL", flvBody.Bytes())
+	SendByteStreamPost(h, "INSERT PYTHON MICROSERVICE URL", flvBody.Bytes())
 
 	video.Data = flvBody
 	fmt.Printf("%v", flvBody)
@@ -191,34 +192,16 @@ func (h *Handler) OnClose() {
 	}
 }
 
-// Send flv file to the microservice
-func sendMultiPartPost(h *Handler, url string, data []byte) ([]byte, error) {
-	var (
-		buf = new(bytes.Buffer)
-		w   = multipart.NewWriter(buf)
-	)
-	part, err := w.CreateFormFile("flv", filepath.Base("/flv_data.flv"))
+// Stream byte data to the microservice
+func SendByteStreamPost(h *Handler, url string, data []byte) ([]byte, error) {
+	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
 	if err != nil {
 		return []byte{}, err
 	}
-
-	_, err = part.Write(data)
-	if err != nil {
-		return []byte{}, err
-	}
-	err = w.Close()
-	if err != nil {
-		return []byte{}, err
-	}
-
-	req, err := http.NewRequest("POST", url, buf)
-	if err != nil {
-		return []byte{}, err
-	}
-	req.Header.Add("Content-Type", w.FormDataContentType())
+	req.Header.Add("Content-Type", "application/octet-stream")
 
 	res, err := h.relayService.httpClient.Do(req)
-	if err != nil {
+	if err != nil || res.StatusCode != http.StatusOK {
 		return []byte{}, err
 	}
 	defer res.Body.Close()
@@ -229,3 +212,42 @@ func sendMultiPartPost(h *Handler, url string, data []byte) ([]byte, error) {
 	}
 	return content, nil
 }
+
+// Send flv file to the microservice
+// func sendMultiPartPost(h *Handler, url string, data []byte) ([]byte, error) {
+// 	var (
+// 		buf = new(bytes.Buffer)
+// 		w   = multipart.NewWriter(buf)
+// 	)
+// 	part, err := w.CreateFormFile("flv", filepath.Base("/flv_data.flv"))
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+
+// 	_, err = part.Write(data)
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+// 	err = w.Close()
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+
+// 	req, err := http.NewRequest("POST", url, buf)
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+// 	req.Header.Add("Content-Type", w.FormDataContentType())
+
+// 	res, err := h.relayService.httpClient.Do(req)
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+// 	defer res.Body.Close()
+
+// 	content, err := io.ReadAll(res.Body)
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+// 	return content, nil
+// }
